@@ -47,9 +47,7 @@ namespace StudyAIAPI.Services
                 var text = ExtractText(file);
                 if (string.IsNullOrWhiteSpace(text))
                 {
-                    throw new InvalidOperationException(
-                        $"No se pudo extraer texto del PDF '{file.FileName}'"
-                    );
+                    throw new PdfWithoutTextException(file.FileName);
                 }
 
                 var messages = new List<ChatMessage>
@@ -89,6 +87,14 @@ namespace StudyAIAPI.Services
         public void Dispose()
         {
             _chatClient.Dispose();
+        }
+    }
+
+    public sealed class PdfWithoutTextException : Exception
+    {
+        public PdfWithoutTextException(string fileName)
+            : base($"El PDF '{fileName}' no contiene texto legible.")
+        {
         }
     }
 }

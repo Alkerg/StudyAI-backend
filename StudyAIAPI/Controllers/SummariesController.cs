@@ -9,16 +9,19 @@ namespace StudyAIAPI.Controllers
     public class SummariesController : ControllerBase
     {
         private readonly LLMService _llmService;
+        private readonly ILogger<SummariesController> _logger;
 
-        public SummariesController(LLMService llmService)
+        public SummariesController(LLMService llmService, ILogger<SummariesController> logger)
         {
             _llmService = llmService;
+            _logger = logger;
         }
 
         [HttpPost]
         [Consumes("multipart/form-data")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<string>> GetSummary([FromForm] SummaryRequest request)
         {
@@ -34,9 +37,32 @@ namespace StudyAIAPI.Controllers
                     return BadRequest($"'{file.FileName}' is not a PDF");
             }
 
-            var summary = await _llmService.GetSummaryFromLLM(request.Files);
 
-            return Content(summary, "application/json; charset=utf-8");
+
+            try
+            {
+                var summary = await _llmService.GetSummaryFromLLM(request.Files);
+                return Content(summary, "application/json; charset=utf-8");
+            }
+            catch (PdfWithoutTextException exception)
+            {
+                return StatusCode(StatusCodes.Status422UnprocessableEntity, new
+                {
+                    title = "PDF sin texto",
+                    detail = exception.Message,
+                    status = StatusCodes.Status422UnprocessableEntity
+                });
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Error al generar el resumen de los archivos enviados.");
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    title = "No se pudo generar el resumen",
+                    detail = "Ocurrió un error inesperado al procesar los archivos. Inténtalo nuevamente más tarde.",
+                    status = StatusCodes.Status500InternalServerError
+                });
+            }
         }
     }
 }
